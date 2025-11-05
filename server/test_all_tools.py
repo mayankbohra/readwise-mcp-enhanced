@@ -79,15 +79,6 @@ async def test_reader_api_tools(client: ReadwiseClient):
     except Exception as e:
         log_error(f"Failed: {e}")
 
-    # Test 5: Topic search (if API supports it)
-    log_test("topic_search - searching for 'AI'")
-    try:
-        results = await client.topic_search(query="AI", limit=5)
-        log_success(f"Returned {len(results)} results")
-    except Exception as e:
-        log_error(f"Failed: {e}")
-        log_warning("Topic search may not be available in v3 API")
-
 
 async def test_highlights_api_tools(client: ReadwiseClient):
     """Test all Highlights API (v2) tools"""

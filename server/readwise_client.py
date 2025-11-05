@@ -117,58 +117,6 @@ class ReadwiseClient:
         response = await self._request("GET", f"{self.v3_base_url}/tags")
         return response.get("tags", [])
 
-    async def topic_search(
-        self,
-        query: str,
-        location: Optional[str] = None,
-        category: Optional[str] = None,
-        limit: int = 20
-    ) -> List[Dict[str, Any]]:
-        """
-        Search documents by topic using client-side filtering.
-
-        NOTE: Reader v3 API does not have a dedicated search endpoint.
-        This method fetches documents and performs client-side text matching
-        on title, summary, and notes fields.
-
-        Args:
-            query: Search query (searches in title, summary, notes)
-            location: Filter by location before search
-            category: Filter by category before search
-            limit: Maximum results to return
-
-        Returns:
-            List of matching documents
-        """
-        # Fetch all documents with filters
-        documents = await self.list_documents(
-            location=location,
-            category=category,
-            limit=None  # Fetch all to search properly
-        )
-
-        # Client-side search in title, summary, notes
-        query_lower = query.lower()
-        matching_docs = []
-
-        for doc in documents:
-            # Search in multiple fields
-            title = (doc.get("title") or "").lower()
-            summary = (doc.get("summary") or "").lower()
-            notes = (doc.get("notes") or "").lower()
-            author = (doc.get("author") or "").lower()
-
-            if (query_lower in title or
-                query_lower in summary or
-                query_lower in notes or
-                query_lower in author):
-                matching_docs.append(doc)
-
-                if len(matching_docs) >= limit:
-                    break
-
-        return matching_docs[:limit]
-
     # ==================== Highlights API (v2) ====================
 
     async def list_highlights(

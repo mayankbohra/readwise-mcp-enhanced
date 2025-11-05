@@ -243,49 +243,6 @@ async def readwise_list_tags() -> str:
         return f"Error: {str(e)}"
 
 
-@mcp.tool()
-async def readwise_topic_search(
-    query: str,
-    location: Optional[str] = None,
-    category: Optional[str] = None,
-    limit: int = 20
-) -> str:
-    """
-    Search documents by topic in Readwise Reader using client-side filtering.
-
-    NOTE: Reader v3 API does not have a native search endpoint. This tool
-    fetches all your documents and performs client-side text matching on
-    title, summary, notes, and author fields.
-
-    Args:
-        query: Search query (case-insensitive, searches title/summary/notes/author)
-        location: Optional filter by location before search
-        category: Optional filter by category before search
-        limit: Maximum results to return (default: 20)
-
-    Returns:
-        JSON string with matching documents
-
-    Examples:
-        - Search for AI content: query="artificial intelligence"
-        - Search in new items: query="python", location="new"
-        - Search articles: query="docker", category="article"
-
-    Performance: May take longer for large libraries as it fetches all documents.
-    """
-    try:
-        results = await client.topic_search(
-            query=query,
-            location=location,
-            category=category,
-            limit=limit
-        )
-        return f"Found {len(results)} matching documents (client-side search): {results}"
-    except Exception as e:
-        logger.error(f"Error searching documents: {e}")
-        return f"Error: {str(e)}"
-
-
 # ==================== HIGHLIGHTS TOOLS (7) ====================
 
 @mcp.tool()
