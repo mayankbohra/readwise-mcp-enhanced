@@ -773,6 +773,96 @@ async def readwise_search_highlights(
 
 
 @mcp.tool()
+async def search_readwise_highlights(
+    vector_search_term: str,
+    full_text_queries: Optional[List[Dict[str, str]]] = None
+) -> str:
+    """
+    Search Readwise highlights using the MCP endpoint with vector and field-specific full-text search.
+    
+    This tool matches the official Readwise MCP implementation and provides advanced search capabilities:
+    - Vector/semantic search for finding conceptually similar content
+    - Field-specific full-text search across document metadata and highlight content
+    
+    Args:
+        vector_search_term: String for vector/semantic search (searches for conceptually similar content)
+        full_text_queries: Optional list of field-specific queries (max 8). Each query object should have:
+            - field_name: One of "document_author", "document_title", "highlight_note", 
+                          "highlight_plaintext", "highlight_tags"
+            - search_term: The search term for that specific field
+    
+    Returns:
+        JSON string with results array containing matching highlights with scores and attributes
+    
+    Examples:
+        - Search for GenAI content:
+          vector_search_term="generative AI GenAI artificial intelligence"
+          full_text_queries=[
+            {"field_name": "highlight_plaintext", "search_term": "GenAI"},
+            {"field_name": "highlight_plaintext", "search_term": "generative AI"},
+            {"field_name": "document_title", "search_term": "AI"}
+          ]
+    """
+    try:
+        # Parameter validation
+        if not vector_search_term or not vector_search_term.strip():
+            return format_json_response({"error": "vector_search_term cannot be empty"})
+        
+        if full_text_queries is None:
+            full_text_queries = []
+        
+        if len(full_text_queries) > 8:
+            return format_json_response({"error": "full_text_queries cannot exceed 8 items"})
+        
+        # Validate field names
+        valid_fields = {
+            "document_author",
+            "document_title",
+            "highlight_note",
+            "highlight_plaintext",
+            "highlight_tags"
+        }
+        
+        for i, query in enumerate(full_text_queries):
+            if not isinstance(query, dict):
+                return format_json_response({"error": f"full_text_queries[{i}] must be a dictionary"})
+            
+            field_name = query.get("field_name")
+            search_term = query.get("search_term")
+            
+            if not field_name:
+                return format_json_response({"error": f"full_text_queries[{i}] missing 'field_name'"})
+            if not search_term:
+                return format_json_response({"error": f"full_text_queries[{i}] missing 'search_term'"})
+            
+            if field_name not in valid_fields:
+                return format_json_response({
+                    "error": f"Invalid field_name '{field_name}' in full_text_queries[{i}]. Must be one of: {', '.join(valid_fields)}"
+                })
+        
+        # Call the MCP search endpoint
+        result = await client.search_highlights_mcp(
+            vector_search_term=vector_search_term.strip(),
+            full_text_queries=full_text_queries
+        )
+        
+        # The MCP endpoint returns results directly in the response
+        # Format matches the official implementation
+        return format_json_response({
+            "results": result.get("results", []),
+            "count": len(result.get("results", []))
+        })
+        
+    except ValueError as e:
+        logger.error(f"Validation error in MCP search: {e}")
+        return format_json_response({"error": str(e), "message": "Invalid search parameters"})
+    except Exception as e:
+        logger.error(f"Error in MCP search: {e}")
+        logger.error(traceback.format_exc())
+        return format_json_response({"error": str(e), "message": "Failed to search highlights via MCP endpoint"})
+
+
+@mcp.tool()
 async def readwise_list_books(
     category: Optional[str] = None,
     limit: int = 20,

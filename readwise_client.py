@@ -323,6 +323,134 @@ class ReadwiseClient:
             "count": len(all_results)
         }
 
+    async def _mcp_request(
+        self,
+        method: str,
+        url: str,
+        json: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Make HTTP request to Readwise MCP API endpoint with X-Access-Token header.
+        
+        MCP endpoints use X-Access-Token instead of Authorization header.
+        
+        Args:
+            method: HTTP method (POST, GET, etc.)
+            url: Full URL to request
+            json: JSON payload for POST requests
+            
+        Returns:
+            Response JSON data
+        """
+        max_retries = 3
+        retry_count = 0
+        
+        # MCP endpoints use X-Access-Token header
+        mcp_headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Access-Token": self.token
+        }
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            while retry_count <= max_retries:
+                try:
+                    response = await client.request(
+                        method=method,
+                        url=url,
+                        headers=mcp_headers,
+                        json=json
+                    )
+                    
+                    # Handle rate limit (429) with exponential backoff
+                    if response.status_code == 429:
+                        if retry_count < max_retries:
+                            wait_time = (2 ** retry_count) * self.rate_limit_delay
+                            logger.warning(f"Rate limit hit (429). Retrying in {wait_time:.2f}s (attempt {retry_count + 1}/{max_retries})")
+                            await asyncio.sleep(wait_time)
+                            retry_count += 1
+                            continue
+                        else:
+                            logger.error(f"Rate limit exceeded after {max_retries} retries")
+                            raise Exception(f"Readwise API rate limit exceeded. Please try again later.")
+                    
+                    response.raise_for_status()
+                    return response.json()
+                    
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 429:
+                        if retry_count < max_retries:
+                            wait_time = (2 ** retry_count) * self.rate_limit_delay
+                            logger.warning(f"Rate limit hit (429). Retrying in {wait_time:.2f}s (attempt {retry_count + 1}/{max_retries})")
+                            await asyncio.sleep(wait_time)
+                            retry_count += 1
+                            continue
+                    logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
+                    raise Exception(f"Readwise MCP API error: {e.response.status_code} - {e.response.text}")
+                except Exception as e:
+                    logger.error(f"Request error: {str(e)}")
+                    raise
+            
+            raise Exception("Request failed after retries")
+
+    async def search_highlights_mcp(
+        self,
+        vector_search_term: str,
+        full_text_queries: Optional[List[Dict[str, str]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Search highlights using Readwise MCP endpoint with vector and full-text search.
+        
+        This method uses the specialized MCP endpoint that supports:
+        - Vector/semantic search via vector_search_term
+        - Field-specific full-text search via full_text_queries
+        
+        Args:
+            vector_search_term: String for vector/semantic search
+            full_text_queries: Optional list of query objects, each with:
+                - field_name: One of document_author, document_title, highlight_note, 
+                              highlight_plaintext, highlight_tags
+                - search_term: The search term for that field
+                Maximum 8 queries allowed.
+        
+        Returns:
+            Dict with 'results' list containing highlight matches
+        """
+        if full_text_queries is None:
+            full_text_queries = []
+        
+        if len(full_text_queries) > 8:
+            raise ValueError("full_text_queries cannot exceed 8 items")
+        
+        # Validate field names
+        valid_fields = {
+            "document_author",
+            "document_title", 
+            "highlight_note",
+            "highlight_plaintext",
+            "highlight_tags"
+        }
+        
+        for query in full_text_queries:
+            field_name = query.get("field_name")
+            if field_name not in valid_fields:
+                raise ValueError(f"Invalid field_name: {field_name}. Must be one of {valid_fields}")
+        
+        payload = {
+            "vector_search_term": vector_search_term,
+            "full_text_queries": full_text_queries
+        }
+        
+        # MCP endpoint uses base URL without version
+        base_url = "https://readwise.io"
+        response = await self._mcp_request(
+            "POST",
+            f"{base_url}/api/mcp/highlights",
+            json=payload
+        )
+        
+        return response
+
     async def list_books(
         self,
         page_size: int = 100,
