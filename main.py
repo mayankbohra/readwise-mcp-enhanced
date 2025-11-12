@@ -252,10 +252,10 @@ async def fetch_pages_parallel(
 # We'll implement API key validation in the app setup below
 
 
-# ==================== READER TOOLS (6) ====================
+# ==================== READER TOOLS (5) ====================
 
 @mcp.tool()
-async def readwise_save_document(
+async def reader_save_document(
     url: str,
     tags: Optional[List[str]] = None,
     location: Optional[str] = "later",
@@ -295,7 +295,7 @@ async def readwise_save_document(
 
 
 @mcp.tool()
-async def readwise_list_documents(
+async def reader_list_documents(
     location: Optional[str] = None,
     category: Optional[str] = None,
     author: Optional[str] = None,
@@ -431,7 +431,7 @@ async def readwise_list_documents(
 
 
 @mcp.tool()
-async def readwise_update_document(
+async def reader_update_document(
     document_id: str,
     title: Optional[str] = None,
     author: Optional[str] = None,
@@ -480,7 +480,7 @@ async def readwise_update_document(
 
 
 @mcp.tool()
-async def readwise_delete_document(document_id: str) -> str:
+async def reader_delete_document(document_id: str) -> str:
     """
     Delete a document from Readwise Reader.
 
@@ -504,7 +504,7 @@ async def readwise_delete_document(document_id: str) -> str:
 
 
 @mcp.tool()
-async def readwise_list_tags() -> str:
+async def reader_list_tags() -> str:
     """
     Get all tags from Readwise Reader.
 
@@ -794,6 +794,17 @@ async def search_readwise_highlights(
         
         if full_text_queries is None:
             full_text_queries = []
+        
+        # Handle case where full_text_queries is passed as a JSON string instead of a list
+        if isinstance(full_text_queries, str):
+            try:
+                full_text_queries = json.loads(full_text_queries)
+            except json.JSONDecodeError as e:
+                return format_json_response({"error": f"full_text_queries must be a valid JSON list: {str(e)}"})
+        
+        # Ensure it's a list after parsing
+        if not isinstance(full_text_queries, list):
+            return format_json_response({"error": "full_text_queries must be a list"})
         
         if len(full_text_queries) > 8:
             return format_json_response({"error": "full_text_queries cannot exceed 8 items"})
